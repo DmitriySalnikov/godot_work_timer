@@ -1,6 +1,6 @@
-# Work Time Couter for Godot
+# Work Time Counter for Godot
 
-Simple time counter. Also it's count Runs of the project in the editor and exports to target platforms.
+A simple time counter. It can also count Runs in the editor and the number of exports to target platforms.
 I made it for personal use.
 
 ## Usage

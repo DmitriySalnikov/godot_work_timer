@@ -1,0 +1,4 @@
+Extract here `csharp` and `lib` folders from `discord_game_sdk.zip`.
+Change path to lib in `discord_sdk/csharp/Constants.cs`. Replace `discord_game_sdk` by `addons/WorkTimer/discord_sdk/lib/x86_64/discord_game_sdk`
+
+Or just define conditional compilation symbol `NO_DISCORD` to disable discord support

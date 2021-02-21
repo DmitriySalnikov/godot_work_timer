@@ -13,6 +13,7 @@ namespace WorkTimeCounter
         public TimeSpan CurrentWorkTime { get; protected set; } = new TimeSpan();
         public int TotalPlayTimes { get; protected set; } = 0;
         public int TotalExportTimes { get; protected set; } = 0;
+        public DateTime FirstLaunch { get; protected set; } = DateTime.Now;
 
         public void AddTime(TimeSpan time)
         {
@@ -51,12 +52,12 @@ namespace WorkTimeCounter
 
             public void Save()
             {
-                metaStorage.SetMeta(nameof(CurrentWorkTime), CurrentWorkTime.Ticks.ToString());
-                metaStorage.SetMeta(nameof(IsCounterTempDisabled), ((int)IsCounterTempDisabled).ToString());
-                metaStorage.SetMeta(nameof(TempDisableStartTime), TempDisableStartTime.Ticks.ToString());
-
                 try
                 {
+                    metaStorage.SetMeta(nameof(CurrentWorkTime), CurrentWorkTime.Ticks.ToString());
+                    metaStorage.SetMeta(nameof(IsCounterTempDisabled), ((int)IsCounterTempDisabled).ToString());
+                    metaStorage.SetMeta(nameof(TempDisableStartTime), TempDisableStartTime.Ticks.ToString());
+
                     var file = new File();
                     var dir = new Directory();
                     if (file.FileExists(saveFile))
@@ -87,6 +88,7 @@ namespace WorkTimeCounter
                     var dict = new Godot.Collections.Dictionary
                     {
                         // Store data
+                        ["fist_launch"] = FirstLaunch.Ticks.ToString(),
                         ["time"] = TotalWorkTime.Ticks.ToString(),
                         ["plays"] = TotalPlayTimes.ToString(),
                         ["exports"] = TotalExportTimes.ToString(),
@@ -115,17 +117,17 @@ namespace WorkTimeCounter
 
             void Load()
             {
-                if (metaStorage.HasMeta(nameof(CurrentWorkTime)))
-                    CurrentWorkTime = new TimeSpan(long.Parse((string)metaStorage.GetMeta(nameof(CurrentWorkTime))));
-
-                // Temporary disabling
-                if (metaStorage.HasMeta(nameof(IsCounterTempDisabled)))
-                    IsCounterTempDisabled = (TempDisabledState)int.Parse((string)metaStorage.GetMeta(nameof(IsCounterTempDisabled)));
-                if (metaStorage.HasMeta(nameof(TempDisableStartTime)))
-                    TempDisableStartTime = new DateTime(long.Parse((string)metaStorage.GetMeta(nameof(TempDisableStartTime))));
-
                 try
                 {
+                    if (metaStorage.HasMeta(nameof(CurrentWorkTime)))
+                        CurrentWorkTime = new TimeSpan(long.Parse((string)metaStorage.GetMeta(nameof(CurrentWorkTime))));
+
+                    // Temporary disabling
+                    if (metaStorage.HasMeta(nameof(IsCounterTempDisabled)))
+                        IsCounterTempDisabled = (TempDisabledState)int.Parse((string)metaStorage.GetMeta(nameof(IsCounterTempDisabled)));
+                    if (metaStorage.HasMeta(nameof(TempDisableStartTime)))
+                        TempDisableStartTime = new DateTime(long.Parse((string)metaStorage.GetMeta(nameof(TempDisableStartTime))));
+
                     var file = new File();
                     if (file.FileExists(saveFile))
                     {
@@ -147,6 +149,7 @@ namespace WorkTimeCounter
                                     };
                                     // Loading data
 
+                                    FirstLaunch = new DateTime(long.Parse(getValue("fist_launch", FirstLaunch.Ticks.ToString())));
                                     TotalWorkTime = new TimeSpan(long.Parse(getValue("time", TotalWorkTime.Ticks.ToString())));
                                     TotalPlayTimes = int.Parse(getValue("plays", TotalPlayTimes.ToString()));
                                     TotalExportTimes = int.Parse(getValue("exports", TotalExportTimes.ToString()));
@@ -183,6 +186,7 @@ namespace WorkTimeCounter
         Godot.Timer tempDisableTimer = null;
         PopupPanel popuPanel = null;
 
+        Label p_first_launch_label = null;
         Label p_total_time_label = null;
         Label p_current_time_label = null;
         Label p_total_runs = null;
@@ -320,6 +324,7 @@ namespace WorkTimeCounter
             p_current_time_label = new Label() { Name = "CurrnetTimeLabel" };
             p_total_runs = new Label() { Name = "TotalRunsLabel" };
             p_total_exports = new Label() { Name = "TotalExportsLabel" };
+            p_first_launch_label = new Label() { Name = "FirstLaunchLabel" };
             p_enabled_box = new CheckBox() { Text = "Time Counter Enabled" };
             p_temp_disable_time = new SpinBox() { Suffix = "min", Rounded = true, MaxValue = 24 * 60 };
             var temp_tdt_line = new HBoxContainer();
@@ -329,6 +334,8 @@ namespace WorkTimeCounter
             vbox.AddChild(p_current_time_label);
             vbox.AddChild(p_total_runs);
             vbox.AddChild(p_total_exports);
+            vbox.AddChild(p_first_launch_label);
+
             vbox.AddChild(p_enabled_box);
             vbox.AddChild(temp_tdt_line);
             temp_tdt_line.AddChild(p_temp_disable_time);
@@ -385,6 +392,7 @@ namespace WorkTimeCounter
             p_current_time_label.Text = $"Current session work time: {GetTimeString(workCounter.CurrentWorkTime, true)}";
             p_total_runs.Text = $"Number of Plays: {workCounter.TotalPlayTimes}";
             p_total_exports.Text = $"Number of Exports: {workCounter.TotalExportTimes}";
+            p_first_launch_label.Text = $"First Launch Date: {workCounter.FirstLaunch:D}";
         }
 
         void ResetPrevTime()

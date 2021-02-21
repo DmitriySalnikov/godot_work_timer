@@ -1,3 +1,5 @@
+//#define NO_DISCORD
+
 #if TOOLS
 using Godot;
 using System;

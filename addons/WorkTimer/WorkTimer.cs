@@ -112,7 +112,7 @@ namespace WorkTimeCounter
                 }
                 catch (Exception e)
                 {
-                    GD.PrintErr($"{LogPrefix}{e.Message}");
+                    GD.PrintErr($"{LogPrefix}Exception when saving: {e.Message}\n{e.StackTrace}");
                     return;
                 }
             }
@@ -390,7 +390,7 @@ namespace WorkTimeCounter
 
         void UpdatePopup()
         {
-            p_total_time_label.Text = $"Total work time: {GetTimeString(workCounter.TotalWorkTime, true)}";
+            p_total_time_label.Text = $"Total work time: {GetTimeString(workCounter.TotalWorkTime, true)} ({(int)workCounter.TotalWorkTime.TotalHours}h.)";
             p_current_time_label.Text = $"Current session work time: {GetTimeString(workCounter.CurrentWorkTime, true)}";
             p_total_runs.Text = $"Number of Plays: {workCounter.TotalPlayTimes}";
             p_total_exports.Text = $"Number of Exports: {workCounter.TotalExportTimes}";

@@ -16,6 +16,11 @@ namespace WorkTimeCounter
 
         bool isDisabling = true;
 
+        WorkTimerPlugin()
+        {
+            Instance = this;
+        }
+
         public override void _EnterTree()
         {
             isDisabling = false;
@@ -49,7 +54,6 @@ namespace WorkTimeCounter
 
         void Init()
         {
-            Instance = this;
             node?.QueueFree();
             node = new WorkTimer();
             AddControlToContainer(CustomControlContainer.Toolbar, node);
@@ -58,7 +62,7 @@ namespace WorkTimeCounter
         void Deinit()
         {
             Instance = null;
-            if (node != null)
+            if (node != null && node.NativeInstance != IntPtr.Zero)
             {
                 RemoveControlFromContainer(CustomControlContainer.Toolbar, node);
                 //node.QueueFree();

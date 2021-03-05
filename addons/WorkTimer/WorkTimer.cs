@@ -3,9 +3,7 @@
 #if TOOLS
 using Godot;
 using System;
-using System.Linq;
 using System.Text;
-using System.Threading;
 
 namespace WorkTimeCounter
 {
@@ -43,6 +41,7 @@ namespace WorkTimeCounter
             readonly Node metaStorage = null;
             public int TempDisableDelayMinutes = 25;
             public bool IsCounterEnabled = true;
+            public bool IsDiscordEnabled = true;
             public TempDisabledState IsCounterTempDisabled = TempDisabledState.Enabled;
             public DateTime TempDisableStartTime = DateTime.Now;
 
@@ -96,6 +95,7 @@ namespace WorkTimeCounter
                         ["exports"] = TotalExportTimes.ToString(),
                         ["temp_disable_delay"] = TempDisableDelayMinutes.ToString(),
                         ["enabled"] = IsCounterEnabled.ToString(),
+                        ["discord"] = IsDiscordEnabled.ToString(),
                     };
 
                     var text = JSON.Print(dict, "", true);
@@ -157,6 +157,7 @@ namespace WorkTimeCounter
                                     TotalExportTimes = int.Parse(getValue("exports", TotalExportTimes.ToString()));
                                     TempDisableDelayMinutes = int.Parse(getValue("temp_disable_delay", TempDisableDelayMinutes.ToString()));
                                     IsCounterEnabled = bool.Parse(getValue("enabled", IsCounterEnabled.ToString()));
+                                    IsDiscordEnabled = bool.Parse(getValue("discord", IsDiscordEnabled.ToString()));
                                 }
                             }
                         }
@@ -176,6 +177,8 @@ namespace WorkTimeCounter
 
 #if !NO_DISCORD
         Discord.Discord discord = null;
+        CheckBox p_enabled_discord = null;
+        DateTime discordPrevActiveTime = DateTime.Now;
 #endif
 
         const string LogPrefix = "[WorkTimer] ";
@@ -215,7 +218,9 @@ namespace WorkTimeCounter
 
             ResetPrevTime();
             UpdateInfo();
+#if !NO_DISCORD
             InitDiscord();
+#endif
 
             if (workCounter.IsCounterTempDisabled == WorkCounterData.TempDisabledState.TimerStarted)
             {
@@ -265,7 +270,7 @@ namespace WorkTimeCounter
             workCounter = null;
         }
 
-        #endregion // Init and Deinit everything
+        #endregion Init and Deinit everything
 
         public override void _Notification(int what)
         {
@@ -328,6 +333,9 @@ namespace WorkTimeCounter
             p_total_exports = new Label() { Name = "TotalExportsLabel" };
             p_first_launch_label = new Label() { Name = "FirstLaunchLabel" };
             p_enabled_box = new CheckBox() { Text = "Time Counter Enabled" };
+#if !NO_DISCORD
+            p_enabled_discord = new CheckBox() { Text = "Discord Plugin Enabled" };
+#endif
             p_temp_disable_time = new SpinBox() { Suffix = "min", Rounded = true, MaxValue = 24 * 60 };
             var temp_tdt_line = new HBoxContainer();
             var temp_tdt_label = new Label() { Text = "Time counter auto disable delay" };
@@ -338,6 +346,9 @@ namespace WorkTimeCounter
             vbox.AddChild(p_total_exports);
             vbox.AddChild(p_first_launch_label);
 
+#if !NO_DISCORD
+            vbox.AddChild(p_enabled_discord);
+#endif
             vbox.AddChild(p_enabled_box);
             vbox.AddChild(temp_tdt_line);
             temp_tdt_line.AddChild(p_temp_disable_time);
@@ -345,6 +356,11 @@ namespace WorkTimeCounter
 
             p_enabled_box.Connect("toggled", this, nameof(EnabledToggled));
             p_enabled_box.Pressed = workCounter.IsCounterEnabled;
+
+#if !NO_DISCORD
+            p_enabled_discord.Connect("toggled", this, nameof(DiscordToggled));
+            p_enabled_discord.Pressed = workCounter.IsDiscordEnabled;
+#endif
 
             p_temp_disable_time.Connect("value_changed", this, nameof(TempDisableTimeValueChanged));
             p_temp_disable_time.Value = workCounter.TempDisableDelayMinutes;
@@ -360,6 +376,14 @@ namespace WorkTimeCounter
             SetupTimerConnections(enabled);
             workCounter.IsCounterEnabled = enabled;
         }
+
+#if !NO_DISCORD
+        void DiscordToggled(bool enabled)
+        {
+            // SetupTimerConnections(enabled);
+            workCounter.IsDiscordEnabled = enabled;
+        }
+#endif
 
         void SetupTimerConnections(bool enabled)
         {
@@ -418,6 +442,7 @@ namespace WorkTimeCounter
                 {
                     UpdateActivity();
                     discord.RunCallbacks();
+                    discordPrevActiveTime = DateTime.Now;
                     return;
                 }
                 catch (Discord.ResultException e)
@@ -426,14 +451,23 @@ namespace WorkTimeCounter
                     discord.Dispose();
                     discord = null;
                 }
+                finally
+                {
+                    if (!workCounter.IsDiscordEnabled && discord != null)
+                    {
+                        discord.Dispose();
+                        discord = null;
+                        GD.Print($"{LogPrefix}Discord plugin stopped.");
+                    }
+                }
             }
-#endif
 
-            if ((DateTime.Now - prevTime).TotalSeconds > 1.0f)
+            if (workCounter.IsDiscordEnabled && (DateTime.Now - discordPrevActiveTime).TotalSeconds > 1.0f)
             {
-                prevTime = DateTime.Now;
+                discordPrevActiveTime = DateTime.Now;
                 InitDiscord();
             }
+#endif
         }
 
         static string ConvertStrToUTF8(string str)
@@ -451,9 +485,9 @@ namespace WorkTimeCounter
             return $"{(int)time.TotalDays}d. {(int)time.Hours:00}h.";
         }
 
+#if !NO_DISCORD
         void InitDiscord()
         {
-#if !NO_DISCORD
             try
             {
                 discord = new Discord.Discord(811720037064769566, (UInt64)Discord.CreateFlags.NoRequireDiscord);
@@ -474,8 +508,8 @@ namespace WorkTimeCounter
             {
                 GD.Print($"Log[{level}] {message}");
             });
-#endif
         }
+#endif
 
         // Request user's avatar data. Sizes can be powers of 2 between 16 and 2048
 #if !NO_DISCORD

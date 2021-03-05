@@ -82,7 +82,7 @@ namespace WorkTimeCounter
             return null;
         }
 
-        #endregion // Init and Deinit everything
+        #endregion Init and Deinit everything
 
         public void PlayPressed()
         {

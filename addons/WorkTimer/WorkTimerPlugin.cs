@@ -47,7 +47,10 @@ namespace WorkTimeCounter
             Deinit();
 
             if (!isDisabling)
+            {
                 CallDeferred(nameof(Init));
+                CallDeferred(nameof(CSharpReloaded));
+            }
 
             base.Dispose(disposing);
         }
@@ -84,10 +87,16 @@ namespace WorkTimeCounter
 
         #endregion Init and Deinit everything
 
-        public void PlayPressed()
+        void PlayPressed()
         {
             node.Counter.IncrementPlays();
             node.UpdateTime();
+        }
+
+        void CSharpReloaded()
+        {
+            node.Counter.IncrementBuilds();
+            node.UpdatePopup();
         }
 
         public void ExportPressed()

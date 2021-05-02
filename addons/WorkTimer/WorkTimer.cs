@@ -12,6 +12,7 @@ namespace WorkTimeCounter
         public TimeSpan TotalWorkTime { get; protected set; } = new TimeSpan();
         public TimeSpan CurrentWorkTime { get; protected set; } = new TimeSpan();
         public int TotalPlayTimes { get; protected set; } = 0;
+        public int TotalBuildTimes { get; protected set; } = 0;
         public int TotalExportTimes { get; protected set; } = 0;
         public DateTime FirstLaunch { get; protected set; } = DateTime.Now;
 
@@ -21,6 +22,7 @@ namespace WorkTimeCounter
             CurrentWorkTime += time;
         }
         public void IncrementPlays() => TotalPlayTimes++;
+        public void IncrementBuilds() => TotalBuildTimes++;
         public void IncrementExports() => TotalExportTimes++;
     }
 
@@ -36,6 +38,7 @@ namespace WorkTimeCounter
                 CounterDisabled,
             }
 
+            const string WorkTimerStringPrefix = "WorkTimerMetaStringPrefix_";
             readonly string saveFile = "user://WorkTimer/save.json";
             readonly string saveFileBak = "user://WorkTimer/save.json.bak";
             readonly Node metaStorage = null;
@@ -45,9 +48,9 @@ namespace WorkTimeCounter
             public TempDisabledState IsCounterTempDisabled = TempDisabledState.Enabled;
             public DateTime TempDisableStartTime = DateTime.Now;
 
-            public WorkCounterData()
+            public WorkCounterData(Node metaStorage)
             {
-                metaStorage = WorkTimerPlugin.Instance;
+                this.metaStorage = metaStorage;
                 Load();
             }
 
@@ -55,9 +58,12 @@ namespace WorkTimeCounter
             {
                 try
                 {
-                    metaStorage.SetMeta(nameof(CurrentWorkTime), CurrentWorkTime.Ticks.ToString());
-                    metaStorage.SetMeta(nameof(IsCounterTempDisabled), ((int)IsCounterTempDisabled).ToString());
-                    metaStorage.SetMeta(nameof(TempDisableStartTime), TempDisableStartTime.Ticks.ToString());
+                    if (metaStorage != null && metaStorage.NativeInstance != IntPtr.Zero)
+                    {
+                        metaStorage.SetMeta(WorkTimerStringPrefix + nameof(CurrentWorkTime), CurrentWorkTime.Ticks.ToString());
+                        metaStorage.SetMeta(WorkTimerStringPrefix + nameof(IsCounterTempDisabled), ((int)IsCounterTempDisabled).ToString());
+                        metaStorage.SetMeta(WorkTimerStringPrefix + nameof(TempDisableStartTime), TempDisableStartTime.Ticks.ToString());
+                    }
 
                     var file = new File();
                     var dir = new Directory();
@@ -92,6 +98,7 @@ namespace WorkTimeCounter
                         ["fist_launch"] = FirstLaunch.Ticks.ToString(),
                         ["time"] = TotalWorkTime.Ticks.ToString(),
                         ["plays"] = TotalPlayTimes.ToString(),
+                        ["builds"] = TotalBuildTimes.ToString(),
                         ["exports"] = TotalExportTimes.ToString(),
                         ["temp_disable_delay"] = TempDisableDelayMinutes.ToString(),
                         ["enabled"] = IsCounterEnabled.ToString(),
@@ -121,14 +128,16 @@ namespace WorkTimeCounter
             {
                 try
                 {
-                    if (metaStorage.HasMeta(nameof(CurrentWorkTime)))
-                        CurrentWorkTime = new TimeSpan(long.Parse((string)metaStorage.GetMeta(nameof(CurrentWorkTime))));
-
-                    // Temporary disabling
-                    if (metaStorage.HasMeta(nameof(IsCounterTempDisabled)))
-                        IsCounterTempDisabled = (TempDisabledState)int.Parse((string)metaStorage.GetMeta(nameof(IsCounterTempDisabled)));
-                    if (metaStorage.HasMeta(nameof(TempDisableStartTime)))
-                        TempDisableStartTime = new DateTime(long.Parse((string)metaStorage.GetMeta(nameof(TempDisableStartTime))));
+                    if (metaStorage != null && metaStorage.NativeInstance != IntPtr.Zero)
+                    {
+                        if (metaStorage.HasMeta(WorkTimerStringPrefix + nameof(CurrentWorkTime)))
+                            CurrentWorkTime = new TimeSpan(long.Parse((string)metaStorage.GetMeta(WorkTimerStringPrefix + nameof(CurrentWorkTime))));
+                        // Temporary disabling
+                        if (metaStorage.HasMeta(WorkTimerStringPrefix + nameof(IsCounterTempDisabled)))
+                            IsCounterTempDisabled = (TempDisabledState)int.Parse((string)metaStorage.GetMeta(WorkTimerStringPrefix + nameof(IsCounterTempDisabled)));
+                        if (metaStorage.HasMeta(WorkTimerStringPrefix + nameof(TempDisableStartTime)))
+                            TempDisableStartTime = new DateTime(long.Parse((string)metaStorage.GetMeta(WorkTimerStringPrefix + nameof(TempDisableStartTime))));
+                    }
 
                     var file = new File();
                     if (file.FileExists(saveFile))
@@ -153,6 +162,7 @@ namespace WorkTimeCounter
 
                                     FirstLaunch = new DateTime(long.Parse(getValue("fist_launch", FirstLaunch.Ticks.ToString())));
                                     TotalWorkTime = new TimeSpan(long.Parse(getValue("time", TotalWorkTime.Ticks.ToString())));
+                                    TotalBuildTimes = int.Parse(getValue("builds", TotalBuildTimes.ToString()));
                                     TotalPlayTimes = int.Parse(getValue("plays", TotalPlayTimes.ToString()));
                                     TotalExportTimes = int.Parse(getValue("exports", TotalExportTimes.ToString()));
                                     TempDisableDelayMinutes = int.Parse(getValue("temp_disable_delay", TempDisableDelayMinutes.ToString()));
@@ -184,7 +194,7 @@ namespace WorkTimeCounter
         const string LogPrefix = "[WorkTimer] ";
         DateTime prevTime = DateTime.Now;
         bool isOneCreateErrorShowen = false;
-        WorkCounterData workCounter = new WorkCounterData();
+        WorkCounterData workCounter = null;
 
         Godot.Timer updateTimer = null;
         Godot.Timer saveTimer = null;
@@ -195,6 +205,7 @@ namespace WorkTimeCounter
         Label p_total_time_label = null;
         Label p_current_time_label = null;
         Label p_total_runs = null;
+        Label p_total_builds = null;
         Label p_total_exports = null;
         CheckBox p_enabled_box = null;
         SpinBox p_temp_disable_time = null;
@@ -203,6 +214,8 @@ namespace WorkTimeCounter
 
         public override void _EnterTree()
         {
+            workCounter = new WorkCounterData(GetTree().Root);
+
             updateTimer = new Godot.Timer() { Name = "Update Timer", WaitTime = 10, Autostart = false };
             saveTimer = new Godot.Timer() { Name = "Save Timer", WaitTime = 30, Autostart = false };
             tempDisableTimer = new Godot.Timer() { Name = "Temp Disable Timer", WaitTime = 1, Autostart = false, OneShot = true };
@@ -330,6 +343,7 @@ namespace WorkTimeCounter
             p_total_time_label = new Label() { Name = "TotalTimeLabel" };
             p_current_time_label = new Label() { Name = "CurrnetTimeLabel" };
             p_total_runs = new Label() { Name = "TotalRunsLabel" };
+            p_total_builds = new Label() { Name = "TotalBuildsLabel", MouseFilter = MouseFilterEnum.Pass, HintTooltip = "Doesn't update without a running instance of Godot Editor." };
             p_total_exports = new Label() { Name = "TotalExportsLabel" };
             p_first_launch_label = new Label() { Name = "FirstLaunchLabel" };
             p_enabled_box = new CheckBox() { Text = "Time Counter Enabled" };
@@ -343,6 +357,7 @@ namespace WorkTimeCounter
             vbox.AddChild(p_total_time_label);
             vbox.AddChild(p_current_time_label);
             vbox.AddChild(p_total_runs);
+            vbox.AddChild(p_total_builds);
             vbox.AddChild(p_total_exports);
             vbox.AddChild(p_first_launch_label);
 
@@ -412,11 +427,12 @@ namespace WorkTimeCounter
             UpdatePopup();
         }
 
-        void UpdatePopup()
+        public void UpdatePopup()
         {
             p_total_time_label.Text = $"Total work time: {GetTimeString(workCounter.TotalWorkTime, true)} ({(int)workCounter.TotalWorkTime.TotalHours}h.)";
             p_current_time_label.Text = $"Current session work time: {GetTimeString(workCounter.CurrentWorkTime, true)}";
             p_total_runs.Text = $"Number of Plays: {workCounter.TotalPlayTimes}";
+            p_total_builds.Text = $"Number of C# Builds: {workCounter.TotalBuildTimes}";
             p_total_exports.Text = $"Number of Exports: {workCounter.TotalExportTimes}";
             p_first_launch_label.Text = $"First Launch Date: {workCounter.FirstLaunch:D}";
         }
